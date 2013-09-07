@@ -1,6 +1,5 @@
 var express = require('express'),
     faye = require('faye');
-    snake = require('./snake.js');
 
 var app = express();
 var bayeux = new faye.NodeAdapter({
@@ -12,7 +11,6 @@ app.configure(function(){
 	app.set('title', 'Social Snake');
 	app.use(express.bodyParser());
 	app.use(express.static(__dirname + '/public'));
-	app.engine('jade', require('jade').__express);
 });
 
 app.post('/message', function(req, res) {
