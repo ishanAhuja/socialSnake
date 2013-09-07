@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+	<head>
+		<style>
+			body {
+				background-color: #333;
+			}
+		</style>
+		<script src="http://code.createjs.com/easeljs-0.6.1.min.js"></script>
+	</head>
+	<body>
+		<canvas id="stage" width="800" height="600"></canvas>
+		<script>
+		var dir = 1;
+		var snakeDefs = [{
+            length: 5,
+            direction: 1,
+            path: [
+                [445, 300], [460, 300]
+            ]
+        }];
+        var snakes = [];
+		var init = function(){
+		    window.stage = new createjs.Stage("stage");
+
+		    for(var i in snakeDefs)
+		    {
+		    	// console.log(snakeDefs[i]);
+				 var graphics = new createjs.Graphics().beginFill("#ff0000");
+				 for(var j=0; j<snakeDefs[i].path.length; j++)
+				 {
+				 	var iPath = snakeDefs[i].path;
+				 	graphics.drawRect(iPath[0], iPath[1], 10, 20);
+				 }
+				 var shape = new createjs.Shape(graphics);
+				 snakes.push(shape);
+		    }
+		    stage.update();
+		}
+		init();
+		</script>
+	</body>
+</html>
