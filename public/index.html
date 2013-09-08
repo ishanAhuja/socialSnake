@@ -5,38 +5,149 @@
 			body {
 				background-color: #333;
 			}
+
+			#stage{
+				border: 2px solid rgba(255,255,255,0.3);
+			}
 		</style>
+		<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
 		<script src="http://code.createjs.com/easeljs-0.6.1.min.js"></script>
+		<script src="faye-browser-min.js"></script>
 	</head>
 	<body>
-		<canvas id="stage" width="800" height="600"></canvas>
+		<div style="text-align: center; margin-top: 100px;">
+			<img style="display:none;" src="honey_im_subtle.png" id="snakeTexture" />
+			<canvas id="stage" width="800" height="600"></canvas>
+		</div>
 		<script>
 		var dir = 1;
-		var snakeDefs = [{
-            length: 5,
-            direction: 1,
-            path: [
-                [445, 300], [460, 300]
-            ]
-        }];
+
+        var snakeBodyThickness = 5;
         var snakes = [];
+		var snakeDefs;
+		var mySnake;
+
+		window.addEventListener("keydown", function(e){
+		    if (e.keyCode == 38 && mySnake.direction!= 2)
+		    {
+		        mySnake.direction = 0;
+		    }
+		    else if (e.keyCode == 39 && mySnake.direction!= 3)
+		    {
+		        mySnake.direction = 1
+		    }
+		    else if(e.keyCode == 40 && mySnake.direction!= 0){
+		        mySnake.direction = 2;
+		    }
+		    else if (e.keyCode == 37 && mySnake.direction!= 1)
+		    {
+		        mySnake.direction = 3;
+		    }
+
+		    jQuery.post("makeMove", {direction: mySnake.direction, cid: myCID}, function(data){
+				snakeDefs = data;
+		    })
+		});
+
+		var myCID;
+	    var fayeClient = new Faye.Client('/faye');
+
+	    var subscription = fayeClient.subscribe('/snakeMoves', function(message) {
+		  snakeDefs = message.board.snakeDefs;
+		  cherry = message.board.cherry;
+		});
+		fayeClient.publish('/messages', "start");
+		subscription.callback(function(){
+			jQuery.post("joinGame", function(data){
+			   myCID = fayeClient.getClientId();
+				snakeDefs = data.snakeDefs;
+				cherry = data.cherry;
+			  for(var i=0; i<snakeDefs.length; i++)
+			  {
+			  	console.log(snakeDefs[i].clientId);
+			  	if(snakeDefs[i].clientId == myCID)
+			  	{
+			  		mySnake = snakeDefs[i];
+			  	}
+			  }
+				init();
+			});
+		});
+
 		var init = function(){
 		    window.stage = new createjs.Stage("stage");
 
-		    for(var i in snakeDefs)
-		    {
-				 var graphics = new createjs.Graphics().beginFill("#ff0000");
-				 for(var j=0; j<snakeDefs[i].path.length; j++)
-				 {
-				 	var iPath = snakeDefs[i].path;
-				 	graphics.drawRect(iPath[0], iPath[1], 10, 20);
-				 }
-				 var shape = new createjs.Shape(graphics);
-				 snakes.push(shape);
-		    }
-		    stage.update();
+		    createjs.Ticker.addEventListener("tick", function(){
+		    	stage.removeAllChildren();
+				 var cherryGraphics = new createjs.Graphics().beginFill("#f0a920").drawRect(cherry[0], cherry[1], 5, 5);
+				 var cherryShape = new createjs.Shape(cherryGraphics);
+			     stage.addChild(cherryShape);
+
+		    	for(var i in snakeDefs)
+			    {
+
+					if(snakeDefs[i].dontSub)
+			        {
+			            snakeDefs[i].dontSub = false;
+			            lastSnakeLength = snakeDefs[i].path.length-1;
+			            snakeDefs[i].path.length++;
+			        }
+			        else
+			        {
+			            lastSnakeLength = snakeDefs[i].path.length-2;
+			            snakeDefs[i].path.shift();
+			        }	   
+
+	                var lastX = snakeDefs[i].path[lastSnakeLength][0];
+	                var lastY = snakeDefs[i].path[lastSnakeLength][1];
+					if (snakeDefs[i].direction == 0) {   //TOP
+	                    snakeDefs[i].path.push(
+	                        [lastX, lastY-snakeBodyThickness]
+	                    );
+	                } else if (snakeDefs[i].direction == 1) {  //RIGHT
+	                    snakeDefs[i].path.push(
+	                        [lastX+snakeBodyThickness, lastY]
+	                    );
+	                } else if (snakeDefs[i].direction == 2) {  //BOTTOM
+	                    snakeDefs[i].path.push(
+	                        [lastX, lastY+snakeBodyThickness]
+	                    );
+	                } else if (snakeDefs[i].direction == 3) {  //LEFT
+	                    snakeDefs[i].path.push(
+	                        [lastX-snakeBodyThickness, lastY]
+	                    );
+	                }
+					 var graphics = new createjs.Graphics().beginFill(snakeDefs[i].color);
+					 for(var j=0; j<snakeDefs[i].path.length; j++)
+					 {
+					 	var iPath = snakeDefs[i].path[j];
+					 	graphics.drawRect(iPath[0], iPath[1], snakeBodyThickness, snakeBodyThickness);
+					 }
+					 var shape = new createjs.Shape(graphics);
+					 snakes.push(shape);
+				     stage.addChild(shape);
+					//collission tests
+					//cherry
+					if(snakeDefs[i].path[snakeDefs[i].path.length-1][0] == cherry[0] && snakeDefs[i].path[snakeDefs[i].path.length-1][1] == cherry[1])
+					{
+						cherry = [ -10, -10 ];
+					    snakeDefs[i].dontSub = true;
+					}
+					//other snakes
+					for(var j=0; j<snakeDefs.length; j++)
+					{
+						for(var k=0; k<snakeDefs[j].path.length; k++)
+						{
+							if((i!=j) && (snakeDefs[i].path[snakeDefs[i].path.length-1][0] == snakeDefs[j].path[k][0]  && snakeDefs[i].path[snakeDefs[i].path.length-1][1] == snakeDefs[j].path[k][1]))
+							{
+								alert(snakeDefs[i].color+" hit "+snakeDefs[j].color);
+							}
+						}
+					}
+			    }
+		    	stage.update();
+		    });
 		}
-		init();
 		</script>
 	</body>
 </html>
